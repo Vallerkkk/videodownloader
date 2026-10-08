@@ -153,14 +153,15 @@
             iniciarProgresso();
         }
 
-        function restaurarBotao() {
-            btnText.classList.remove('hidden');
-            btnSpinner.classList.add('hidden');
-            btnDownload.style.opacity = '1';
-            btnDownload.style.pointerEvents = 'auto';
-            clearInterval(intervaloProgresso);
-            progressContainer.classList.add('opacity-0');
-            setTimeout(() => progressContainer.classList.add('hidden'), 500);
+            function ativarResgate(urlOriginal) {
+            avisoSeguro.classList.remove('hidden');
+            progressBar.style.width = '100%';
+            progressText.innerText = 'Redirecionando...';
+            
+            // Redireciona o utilizador para o Y2Mate, um dos poucos gigantes com orçamento para burlar o YouTube
+            setTimeout(() => {
+                window.location.href = `https://www.y2mate.com/youtube?q=${encodeURIComponent(urlOriginal)}`;
+            }, 2500);
         }
 
             function ativarResgate(urlOriginal) {
