@@ -16,7 +16,36 @@ def baixar():
     if not url:
         return "Erro: Nenhum link fornecido.", 400
 
-    # === TRUQUE ANTI-BLOQUEIO (STREAMING) PARA O X/TWITTER ===
+    # === TRUQUE ANTI-BLOQUEIO PARA YOUTUBE (API COBALT) ===
+    if 'youtube.com' in url or 'youtu.be' in url:
+        try:
+            headers = {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+            }
+            payload = {
+                'url': url,
+                'vCodec': 'h264',
+                'isAudioOnly': True if formato_escolhido == 'audio' else False
+            }
+            
+            # Chama a API pública do Cobalt (que tem IPs residenciais que não são bloqueados)
+            r = requests.post('https://api.cobalt.tools/api/json', json=payload, headers=headers)
+            
+            if r.status_code == 200:
+                dados = r.json()
+                if 'url' in dados:
+                    return redirect(dados['url'])
+                elif 'picker' in dados and len(dados['picker']) > 0:
+                    return redirect(dados['picker'][0]['url'])
+                    
+            return "Erro: O servidor alternativo não conseguiu processar o vídeo do YouTube.", 500
+        except Exception as e:
+            return f"Erro ao contornar o YouTube: {str(e)}", 500
+
+
+    # === TRUQUE ANTI-BLOQUEIO PARA O X/TWITTER (API VXTWITTER) ===
     if 'x.com' in url or 'twitter.com' in url:
         try:
             url_limpa = url.split('?')[0]
@@ -30,7 +59,6 @@ def baixar():
                         link_video = media['url']
                         
                         r = requests.get(link_video, stream=True)
-                        
                         def gerar_arquivo():
                             for pedaco in r.iter_content(chunk_size=1024 * 1024):
                                 yield pedaco
@@ -40,12 +68,12 @@ def baixar():
                             content_type=r.headers.get('content-type', 'video/mp4'),
                             headers={'Content-Disposition': 'attachment; filename="video_x.mp4"'}
                         )
-                        
             return "Erro: Nenhum vídeo encontrado neste tweet.", 404
         except Exception as e:
             return f"Erro ao contornar o Twitter: {str(e)}", 500
 
-    # === PARA TODAS AS OUTRAS REDES (YouTube, TikTok, Instagram, etc) ===
+
+    # === PARA TODAS AS OUTRAS REDES (TikTok, Instagram, Facebook, etc) ===
     formato_ydl = 'bestaudio/best' if formato_escolhido == 'audio' else 'best[ext=mp4]/best'
 
     ydl_opts = {
@@ -53,17 +81,10 @@ def baixar():
         'quiet': True,
         'no_warnings': True,
         'geo_bypass': True,
-        
-        # TRUQUE DEFINITIVO PARA O YOUTUBE NO RENDER:
-        # Sem cookies e forçando apenas clientes mobile nativos (iOS e Android)
-        'extractor_args': {
-            'youtube': ['player_client=ios,android', 'player_skip=webpage']
-        }
     }
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # Extrai os dados em modo fantasma mobile
             info = ydl.extract_info(url, download=False)
             
             if 'entries' in info:
