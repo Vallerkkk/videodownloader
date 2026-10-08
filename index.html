@@ -163,14 +163,14 @@
             setTimeout(() => progressContainer.classList.add('hidden'), 500);
         }
 
-        function ativarResgate(urlOriginal) {
+            function ativarResgate(urlOriginal) {
             avisoSeguro.classList.remove('hidden');
             progressBar.style.width = '100%';
             progressText.innerText = 'Redirecionando...';
             
-            // Redireciona o utilizador para um portal fiável e sem erros
+            // Redireciona o utilizador para a interface web oficial e segura do Cobalt
             setTimeout(() => {
-                window.location.href = `https://ssyoutube.com/en736Z/youtube-video-downloader?url=${encodeURIComponent(urlOriginal)}`;
+                window.location.href = `https://cobalt.tools/?u=${encodeURIComponent(urlOriginal)}`;
             }, 2500);
         }
 
