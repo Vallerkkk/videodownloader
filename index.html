@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-PT">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -17,7 +17,6 @@
     <main class="flex-grow flex items-center justify-center p-4 sm:p-8">
         <div class="bg-white/5 backdrop-blur-xl border border-white/10 p-6 sm:p-10 rounded-[32px] shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] w-full max-w-md text-center transition-all duration-300 relative">
             
-            <!-- Aviso de Erro Flutuante (Oculto por predefinição) -->
             <div id="erro-toast" class="hidden absolute -top-16 left-0 right-0 bg-red-500/90 text-white text-sm font-bold py-3 px-4 rounded-xl shadow-lg transition-all">
                 <span id="texto-erro">Erro ao processar.</span>
             </div>
@@ -33,7 +32,7 @@
                     Downloader Pro
                 </h1>
                 <p class="text-gray-400 mt-3 text-sm leading-relaxed px-2">
-                    Cole a ligação de qualquer rede social para extrair a multimédia em alta qualidade.
+                    Cole o link de qualquer rede social para extrair a mídia em alta qualidade.
                 </p>
             </div>
             
@@ -73,7 +72,7 @@
             </form>
 
             <div class="mt-8 pt-6 border-t border-white/10 text-xs text-gray-500 flex flex-col gap-2">
-                <p><i class="fa-solid fa-shield-halved mr-1"></i> Seguro, anónimo e ilimitado.</p>
+                <p><i class="fa-solid fa-shield-halved mr-1"></i> Seguro, anônimo e ilimitado.</p>
             </div>
         </div>
     </main>
@@ -101,83 +100,66 @@
             btnDownload.style.cursor = 'pointer';
         }
 
-        function mostrarErro(mensagem) {
-            textoErro.textContent = mensagem;
-            toast.classList.remove('hidden');
-            setTimeout(() => { toast.classList.add('hidden'); }, 5000);
-            restaurarBotao();
-        }
-
         form.addEventListener('submit', async function(e) {
-            const urlInput = document.getElementById('link-input').value; // Mantém as maiúsculas e minúsculas intactas
+            const urlInput = document.getElementById('link-input').value;
             const isAudio = document.getElementById('formato-audio').checked;
             const urlLower = urlInput.toLowerCase();
 
-            // Se for YouTube, o JavaScript assume o controlo via API do Piped (Client-Side)
             if (urlLower.includes('youtube.com') || urlLower.includes('youtu.be')) {
                 e.preventDefault();
                 mostrarCarregamento();
 
-                try {
-                    // Extrai apenas o ID do vídeo (ex: HUa7l7mYhO4) com Expressão Regular
-                    const match = urlInput.match(/(?:v=|\/)([0-9A-Za-z_-]{11})/);
-                    
-                    if (!match) {
-                        mostrarErro("Link do YouTube inválido.");
-                        return;
-                    }
-                    
-                    const videoId = match[1];
+                // APIs Oficiais do Cobalt que permitem CORS (Acessíveis pelo navegador)
+                const servidoresCobalt = [
+                    "https://co.wuk.sh/api/json",
+                    "https://cobalt.api.timelessnesses.me/api/json",
+                    "https://api.cobalt.tools/api/json"
+                ];
 
-                    // Lista de servidores Piped seguros que permitem ligações (CORS)
-                    const servidores = [
-                        "https://pipedapi.kavin.rocks",
-                        "https://api.piped.projectsegfau.lt",
-                        "https://piped-api.lunar.icu",
-                        "https://pipedapi.smnz.de"
-                    ];
+                let linkDireto = null;
 
-                    let linkDireto = null;
+                for (let api of servidoresCobalt) {
+                    try {
+                        const resposta = await fetch(api, {
+                            method: "POST",
+                            headers: {
+                                "Accept": "application/json",
+                                "Content-Type": "application/json"
+                            },
+                            body: JSON.stringify({
+                                url: urlInput,
+                                vCodec: "h264",
+                                videoQuality: "1080",
+                                isAudioOnly: isAudio,
+                                downloadMode: isAudio ? "audio" : "auto"
+                            })
+                        });
 
-                    // Tenta aceder aos servidores um a um até encontrar um que responda
-                    for (let servidor of servidores) {
-                        try {
-                            const resposta = await fetch(`${servidor}/streams/${videoId}`);
-                            if (!resposta.ok) continue; // Falhou? Salta para o próximo servidor.
-
+                        if (resposta.ok) {
                             const dados = await resposta.json();
-                            
-                            if (isAudio) {
-                                const audios = dados.audioStreams;
-                                if (audios && audios.length > 0) {
-                                    audios.sort((a, b) => b.bitrate - a.bitrate); // Maior qualidade
-                                    linkDireto = audios[0].url;
-                                }
-                            } else {
-                                const videos = dados.videoStreams.filter(v => !v.videoOnly); // Vídeos com som embutido
-                                if (videos && videos.length > 0) {
-                                    linkDireto = videos[videos.length - 1].url;
-                                }
+                            if (dados.url) {
+                                linkDireto = dados.url;
+                                break;
+                            } else if (dados.picker && dados.picker.length > 0) {
+                                linkDireto = dados.picker[0].url;
+                                break;
                             }
-
-                            if (linkDireto) break; // Sucesso, aborta o loop!
-                        } catch (err) {
-                            console.log(`O servidor ${servidor} falhou. A testar o próximo...`);
-                            continue;
                         }
+                    } catch (err) {
+                        continue; // Falhou no navegador? Pula pro próximo servidor.
                     }
+                }
 
-                    if (linkDireto) {
-                        window.location.href = linkDireto; // Inicia a transferência
-                        setTimeout(restaurarBotao, 2000);
-                    } else {
-                        mostrarErro("Erro: Todos os servidores falharam ao processar o vídeo.");
-                    }
-                } catch (error) {
-                    mostrarErro("Erro ao processar o YouTube localmente. Tente novamente.");
+                if (linkDireto) {
+                    window.location.href = linkDireto; // SUCESSO! Inicia o download.
+                    setTimeout(restaurarBotao, 2000);
+                } else {
+                    // O MODO DE SEGURANÇA (BACKUP): Se o navegador falhar (ex: bloqueio de CORS ou Adblock), 
+                    // mandamos o link para o nosso servidor Python resolver!
+                    console.log("Bloqueio local detectado. Enviando para o Backend Python...");
+                    form.submit();
                 }
             } else {
-                // Deixa o formulário seguir para o backend Python (Render)
                 mostrarCarregamento();
                 setTimeout(restaurarBotao, 15000);
             }
