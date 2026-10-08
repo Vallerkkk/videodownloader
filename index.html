@@ -100,7 +100,8 @@
         const progressText = document.getElementById('progress-text');
         let intervaloProgresso;
 
-        async function fetchComTimeout(url, options = {}, tempoLimite = 3500) {
+        // A mesma função, mas agora vamos usá-la com tempos personalizados consoante o servidor
+        async function fetchComTimeout(url, options = {}, tempoLimite = 5000) {
             const controller = new AbortController();
             const id = setTimeout(() => controller.abort(), tempoLimite);
             try {
@@ -111,6 +112,8 @@
             } catch (erro) {
                 clearTimeout(id);
                 if (erro.name === 'AbortError') throw new Error("Timeout");
+                // Mapeia o erro "Failed to fetch" para algo mais compreensível
+                if (erro.message.includes('Failed to fetch')) throw new Error("Falha de CORS/Adblock ou Off-line");
                 throw erro; 
             }
         }
@@ -122,10 +125,12 @@
             progressBar.style.width = '0%';
             progressText.innerText = '0%';
             clearInterval(intervaloProgresso);
+            
+            // Abrandei um pouco a barra para acompanhar os novos tempos de limite (10 segundos)
             intervaloProgresso = setInterval(() => {
-                if (progresso < 40) progresso += 2; 
-                else if (progresso < 75) progresso += 1; 
-                else if (progresso < 92) progresso += 0.3; 
+                if (progresso < 40) progresso += 1; 
+                else if (progresso < 80) progresso += 0.5; 
+                else if (progresso < 95) progresso += 0.1; 
                 progressBar.style.width = `${progresso}%`;
                 progressText.innerText = `${Math.floor(progresso)}%`;
             }, 150);
@@ -156,7 +161,6 @@
             setTimeout(() => progressContainer.classList.add('hidden'), 500);
         }
 
-        // Função que mostra a mensagem e o log resumido na tela
         function mostrarErro(mensagem, logTecnico) {
             textoErro.textContent = mensagem;
             motivoErro.textContent = logTecnico;
@@ -177,6 +181,7 @@
                 let linkDireto = null;
                 let logDeErros = []; 
 
+                // LISTA 1: APIs rápidas do Cobalt (Damos-lhes 5 Segundos)
                 const cobaltInstances = [
                     "https://api.cobalt.canine.tools/api/json",
                     "https://cobalt-api.peuk.dev/api/json",
@@ -189,7 +194,8 @@
                             method: "POST",
                             headers: { "Accept": "application/json", "Content-Type": "application/json" },
                             body: JSON.stringify({ url: urlInput, vCodec: "h264", isAudioOnly: isAudio })
-                        });
+                        }, 5000); // 5 SEGUNDOS AQUI
+                        
                         const dados = await resposta.json();
                         linkDireto = dados.url || (dados.picker && dados.picker.length > 0 ? dados.picker[0].url : null);
                         if (linkDireto) break;
@@ -198,18 +204,22 @@
                     }
                 }
 
+                // LISTA 2: APIs pesadas do Invidious (Damos-lhes 10 Segundos!)
                 if (!linkDireto) {
                     const match = urlInput.match(/(?:v=|\/)([0-9A-Za-z_-]{11})/);
                     if (match) {
                         const videoId = match[1];
+                        // Adicionados servidores novos e mais estáveis
                         const invidiousInstances = [
+                            "https://inv.tux.pizza",
                             "https://vid.puffyan.us",
-                            "https://inv.tux.pizza"
+                            "https://invidious.jing.rocks",
+                            "https://invidious.rhyshl.live"
                         ];
                         
                         for (let inst of invidiousInstances) {
                             try {
-                                const res = await fetchComTimeout(`${inst}/api/v1/videos/${videoId}`, {}, 3500);
+                                const res = await fetchComTimeout(`${inst}/api/v1/videos/${videoId}`, {}, 10000); // 10 SEGUNDOS AQUI
                                 const data = await res.json();
                                 if (isAudio && data.adaptiveFormats) {
                                     const audios = data.adaptiveFormats.filter(f => f.type.includes('audio'));
@@ -240,7 +250,6 @@
                     }, 500); 
                 } else {
                     const resumoFalhas = logDeErros.join(" | ");
-                    // Exibe apenas na tela, não envia para o servidor
                     mostrarErro("A transferência falhou.", resumoFalhas);
                 }
             } else {
