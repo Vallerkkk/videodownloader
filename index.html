@@ -15,8 +15,13 @@
 <body class="bg-gradient-to-br from-gray-900 via-slate-900 to-black text-white min-h-[100dvh] flex flex-col selection:bg-blue-500 selection:text-white">
     
     <main class="flex-grow flex items-center justify-center p-4 sm:p-8">
-        <div class="bg-white/5 backdrop-blur-xl border border-white/10 p-6 sm:p-10 rounded-[32px] shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] w-full max-w-md text-center transition-all duration-300">
+        <div class="bg-white/5 backdrop-blur-xl border border-white/10 p-6 sm:p-10 rounded-[32px] shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] w-full max-w-md text-center transition-all duration-300 relative">
             
+            <!-- Aviso de Erro Flutuante (Oculto por padrão) -->
+            <div id="erro-toast" class="hidden absolute -top-16 left-0 right-0 bg-red-500/90 text-white text-sm font-bold py-3 px-4 rounded-xl shadow-lg transition-all">
+                <span id="texto-erro">Erro ao processar.</span>
+            </div>
+
             <div class="mb-8">
                 <div class="flex justify-center gap-3 mb-4 text-2xl text-gray-400">
                     <i class="fa-brands fa-youtube hover:text-red-500 transition-colors"></i>
@@ -32,18 +37,17 @@
                 </p>
             </div>
             
-            <form action="/baixar" method="POST" class="space-y-5" onsubmit="mostrarCarregamento()">
+            <form id="form-download" action="/baixar" method="POST" class="space-y-5">
                 
-                <!-- Seletor de Formato -->
                 <div class="flex gap-4 mb-2">
                     <label class="flex-1 cursor-pointer">
-                        <input type="radio" name="formato" value="video" class="peer sr-only" checked>
+                        <input type="radio" name="formato" value="video" id="formato-video" class="peer sr-only" checked>
                         <div class="rounded-xl border border-white/10 bg-black/40 py-3 text-center peer-checked:bg-blue-600 peer-checked:border-blue-400 peer-checked:shadow-[0_0_15px_rgba(37,99,235,0.4)] transition-all text-sm font-semibold text-gray-300 peer-checked:text-white">
                             <i class="fa-solid fa-video mr-2"></i> Vídeo (MP4)
                         </div>
                     </label>
                     <label class="flex-1 cursor-pointer">
-                        <input type="radio" name="formato" value="audio" class="peer sr-only">
+                        <input type="radio" name="formato" value="audio" id="formato-audio" class="peer sr-only">
                         <div class="rounded-xl border border-white/10 bg-black/40 py-3 text-center peer-checked:bg-purple-600 peer-checked:border-purple-400 peer-checked:shadow-[0_0_15px_rgba(147,51,234,0.4)] transition-all text-sm font-semibold text-gray-300 peer-checked:text-white">
                             <i class="fa-solid fa-music mr-2"></i> Áudio (MP3)
                         </div>
@@ -54,7 +58,7 @@
                     <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors group-focus-within:text-blue-400 text-gray-500">
                         <i class="fa-solid fa-link"></i>
                     </div>
-                    <input type="url" name="url" placeholder="Cole a URL do post ou vídeo..." required
+                    <input type="url" id="link-input" name="url" placeholder="Cole a URL do post ou vídeo..." required
                         class="w-full pl-12 pr-4 h-14 rounded-2xl bg-black/40 border border-white/10 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 transition-all text-gray-100 placeholder-gray-500">
                 </div>
                 
@@ -75,25 +79,83 @@
     </main>
 
     <script>
-        function mostrarCarregamento() {
-            const btnText = document.getElementById('btn-text');
-            const btnSpinner = document.getElementById('btn-spinner');
-            const btnDownload = document.getElementById('btn-download');
+        const form = document.getElementById('form-download');
+        const btnText = document.getElementById('btn-text');
+        const btnSpinner = document.getElementById('btn-spinner');
+        const btnDownload = document.getElementById('btn-download');
+        const toast = document.getElementById('erro-toast');
+        const textoErro = document.getElementById('texto-erro');
 
+        function mostrarCarregamento() {
             btnText.classList.add('hidden');
             btnSpinner.classList.remove('hidden');
-            
             btnDownload.style.opacity = '0.8';
             btnDownload.style.cursor = 'wait';
-            
-            // Restaura o botão após 15 segundos
-            setTimeout(() => {
-                btnText.classList.remove('hidden');
-                btnSpinner.classList.add('hidden');
-                btnDownload.style.opacity = '1';
-                btnDownload.style.cursor = 'pointer';
-            }, 15000);
+            toast.classList.add('hidden');
         }
+
+        function restaurarBotao() {
+            btnText.classList.remove('hidden');
+            btnSpinner.classList.add('hidden');
+            btnDownload.style.opacity = '1';
+            btnDownload.style.cursor = 'pointer';
+        }
+
+        function mostrarErro(mensagem) {
+            textoErro.textContent = mensagem;
+            toast.classList.remove('hidden');
+            setTimeout(() => { toast.classList.add('hidden'); }, 5000);
+            restaurarBotao();
+        }
+
+        // Interceta o envio do formulário
+        form.addEventListener('submit', async function(e) {
+            const url = document.getElementById('link-input').value.toLowerCase();
+            const isAudio = document.getElementById('formato-audio').checked;
+
+            // Se for YouTube, o JavaScript assume o controlo (Client-Side)
+            if (url.includes('youtube.com') || url.includes('youtu.be')) {
+                e.preventDefault(); // Impede o envio para o servidor Python
+                mostrarCarregamento();
+
+                try {
+                    // Chama a API do Cobalt usando a internet do utilizador (IP Limpo)
+                    const resposta = await fetch("https://api.cobalt.tools/api/json", {
+                        method: "POST",
+                        headers: {
+                            "Accept": "application/json",
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            url: document.getElementById('link-input').value,
+                            vCodec: "h264",
+                            isAudioOnly: isAudio,
+                            isNoTTS: true
+                        })
+                    });
+
+                    if (!resposta.ok) throw new Error("A API oficial recusou o vídeo.");
+
+                    const dados = await resposta.json();
+                    
+                    if (dados.url) {
+                        window.location.href = dados.url; // Redireciona para o download
+                        setTimeout(restaurarBotao, 2000);
+                    } else if (dados.picker && dados.picker.length > 0) {
+                        window.location.href = dados.picker[0].url;
+                        setTimeout(restaurarBotao, 2000);
+                    } else {
+                        mostrarErro("Erro: Vídeo não encontrado ou bloqueado.");
+                    }
+                } catch (error) {
+                    mostrarErro("Erro ao processar o YouTube localmente. Tente novamente.");
+                }
+            } else {
+                // Para TikTok, X, Insta: Deixa o formulário seguir para o backend Python normalmente
+                mostrarCarregamento();
+                setTimeout(restaurarBotao, 15000);
+            }
+        });
     </script>
 </body>
 </html>

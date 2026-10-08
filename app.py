@@ -1,7 +1,6 @@
 from flask import Flask, render_template, request, redirect, Response, stream_with_context
 import yt_dlp
 import requests
-import re  # Biblioteca nativa para processar textos
 
 app = Flask(__name__, template_folder='.')
 
@@ -17,62 +16,10 @@ def baixar():
     if not url:
         return "Erro: Nenhum link fornecido.", 400
 
-    # === TRUQUE ANTI-BLOQUEIO PARA YOUTUBE (API PIPED) ===
-    if 'youtube.com' in url or 'youtu.be' in url:
-        try:
-            # Extrai apenas o ID do vídeo (ex: dQw4w9WgXcQ) mesmo de links sujos
-            match = re.search(r"(?:v=|\/)([0-9A-Za-z_-]{11})", url)
-            if not match:
-                return "Erro: Link do YouTube inválido.", 400
-                
-            video_id = match.group(1)
-            
-            # Lista de servidores Piped (Open Source, sem bloqueio de Cloudflare e com Proxy)
-            servidores_piped = [
-                "https://pipedapi.kavin.rocks",
-                "https://api.piped.projectsegfau.lt",
-                "https://piped-api.lunar.icu",
-                "https://pipedapi.smnz.de"
-            ]
-            
-            link_direto = None
-            
-            # Tenta baixar usando os servidores da lista. Se um falhar, tenta o próximo silenciosamente.
-            for servidor in servidores_piped:
-                try:
-                    r = requests.get(f"{servidor}/streams/{video_id}", timeout=8)
-                    if r.status_code == 200:
-                        dados = r.json()
-                        
-                        if formato_escolhido == 'audio':
-                            # Pega a melhor qualidade de áudio
-                            audios = dados.get('audioStreams', [])
-                            if audios:
-                                melhor_audio = max(audios, key=lambda x: x.get('bitrate', 0))
-                                link_direto = melhor_audio.get('url')
-                        else:
-                            # Pega o melhor vídeo que já tem áudio embutido (videoOnly = False)
-                            videos = [v for v in dados.get('videoStreams', []) if not v.get('videoOnly')]
-                            if videos:
-                                # O último item da lista costuma ser a resolução mais alta (720p)
-                                link_direto = videos[-1].get('url')
-                                
-                        if link_direto:
-                            break # Encontrou o link com sucesso, sai do loop de tentativas
-                except:
-                    continue # Servidor atual caiu, tenta o próximo da lista
-                    
-            if link_direto:
-                # O usuário é redirecionado para o proxy seguro do Piped, evitando o Erro 403
-                return redirect(link_direto)
-            else:
-                return "Erro: Todos os servidores alternativos falharam ao tentar extrair o vídeo do YouTube.", 500
-                
-        except Exception as e:
-            return f"Erro ao contornar o YouTube: {str(e)}", 500
+    # O YouTube não chega aqui, é intercetado pelo JavaScript no index.html.
+    # Portanto, este código é dedicado ao X (Twitter), TikTok, Instagram, etc.
 
-
-    # === TRUQUE ANTI-BLOQUEIO PARA O X/TWITTER (API VXTWITTER) ===
+    # === TRUQUE ANTI-BLOQUEIO (STREAMING) PARA O X/TWITTER ===
     if 'x.com' in url or 'twitter.com' in url:
         try:
             url_limpa = url.split('?')[0]
@@ -100,7 +47,7 @@ def baixar():
             return f"Erro ao contornar o Twitter: {str(e)}", 500
 
 
-    # === PARA TODAS AS OUTRAS REDES (TikTok, Instagram, Facebook, etc) ===
+    # === PARA TODAS AS OUTRAS REDES (TikTok, Instagram, etc.) ===
     formato_ydl = 'bestaudio/best' if formato_escolhido == 'audio' else 'best[ext=mp4]/best'
 
     ydl_opts = {
@@ -125,7 +72,7 @@ def baixar():
                 return "Erro: Não foi possível extrair o link direto.", 404
                 
     except Exception as e:
-        return f"Erro ao processar a extração da mídia: {str(e)}", 500
+        return f"Erro ao processar a extração com yt-dlp: {str(e)}", 500
 
 if __name__ == '__main__':
     app.run(debug=True)
