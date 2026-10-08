@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-PT">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -17,7 +17,7 @@
     <main class="flex-grow flex items-center justify-center p-4 sm:p-8">
         <div class="bg-white/5 backdrop-blur-xl border border-white/10 p-6 sm:p-10 rounded-[32px] shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] w-full max-w-md text-center transition-all duration-300 relative">
             
-            <!-- Aviso de Erro Flutuante (Oculto por padrão) -->
+            <!-- Aviso de Erro Flutuante (Oculto por predefinição) -->
             <div id="erro-toast" class="hidden absolute -top-16 left-0 right-0 bg-red-500/90 text-white text-sm font-bold py-3 px-4 rounded-xl shadow-lg transition-all">
                 <span id="texto-erro">Erro ao processar.</span>
             </div>
@@ -33,7 +33,7 @@
                     Downloader Pro
                 </h1>
                 <p class="text-gray-400 mt-3 text-sm leading-relaxed px-2">
-                    Cole o link de qualquer rede social para extrair a mídia em alta qualidade.
+                    Cole a ligação de qualquer rede social para extrair a multimédia em alta qualidade.
                 </p>
             </div>
             
@@ -73,7 +73,7 @@
             </form>
 
             <div class="mt-8 pt-6 border-t border-white/10 text-xs text-gray-500 flex flex-col gap-2">
-                <p><i class="fa-solid fa-shield-halved mr-1"></i> Seguro, anônimo e ilimitado.</p>
+                <p><i class="fa-solid fa-shield-halved mr-1"></i> Seguro, anónimo e ilimitado.</p>
             </div>
         </div>
     </main>
@@ -108,50 +108,76 @@
             restaurarBotao();
         }
 
-        // Interceta o envio do formulário
         form.addEventListener('submit', async function(e) {
-            const url = document.getElementById('link-input').value.toLowerCase();
+            const urlInput = document.getElementById('link-input').value; // Mantém as maiúsculas e minúsculas intactas
             const isAudio = document.getElementById('formato-audio').checked;
+            const urlLower = urlInput.toLowerCase();
 
-            // Se for YouTube, o JavaScript assume o controlo (Client-Side)
-            if (url.includes('youtube.com') || url.includes('youtu.be')) {
-                e.preventDefault(); // Impede o envio para o servidor Python
+            // Se for YouTube, o JavaScript assume o controlo via API do Piped (Client-Side)
+            if (urlLower.includes('youtube.com') || urlLower.includes('youtu.be')) {
+                e.preventDefault();
                 mostrarCarregamento();
 
                 try {
-                    // Chama a API do Cobalt usando a internet do utilizador (IP Limpo)
-                    const resposta = await fetch("https://api.cobalt.tools/api/json", {
-                        method: "POST",
-                        headers: {
-                            "Accept": "application/json",
-                            "Content-Type": "application/json"
-                        },
-                        body: JSON.stringify({
-                            url: document.getElementById('link-input').value,
-                            vCodec: "h264",
-                            isAudioOnly: isAudio,
-                            isNoTTS: true
-                        })
-                    });
-
-                    if (!resposta.ok) throw new Error("A API oficial recusou o vídeo.");
-
-                    const dados = await resposta.json();
+                    // Extrai apenas o ID do vídeo (ex: HUa7l7mYhO4) com Expressão Regular
+                    const match = urlInput.match(/(?:v=|\/)([0-9A-Za-z_-]{11})/);
                     
-                    if (dados.url) {
-                        window.location.href = dados.url; // Redireciona para o download
-                        setTimeout(restaurarBotao, 2000);
-                    } else if (dados.picker && dados.picker.length > 0) {
-                        window.location.href = dados.picker[0].url;
+                    if (!match) {
+                        mostrarErro("Link do YouTube inválido.");
+                        return;
+                    }
+                    
+                    const videoId = match[1];
+
+                    // Lista de servidores Piped seguros que permitem ligações (CORS)
+                    const servidores = [
+                        "https://pipedapi.kavin.rocks",
+                        "https://api.piped.projectsegfau.lt",
+                        "https://piped-api.lunar.icu",
+                        "https://pipedapi.smnz.de"
+                    ];
+
+                    let linkDireto = null;
+
+                    // Tenta aceder aos servidores um a um até encontrar um que responda
+                    for (let servidor of servidores) {
+                        try {
+                            const resposta = await fetch(`${servidor}/streams/${videoId}`);
+                            if (!resposta.ok) continue; // Falhou? Salta para o próximo servidor.
+
+                            const dados = await resposta.json();
+                            
+                            if (isAudio) {
+                                const audios = dados.audioStreams;
+                                if (audios && audios.length > 0) {
+                                    audios.sort((a, b) => b.bitrate - a.bitrate); // Maior qualidade
+                                    linkDireto = audios[0].url;
+                                }
+                            } else {
+                                const videos = dados.videoStreams.filter(v => !v.videoOnly); // Vídeos com som embutido
+                                if (videos && videos.length > 0) {
+                                    linkDireto = videos[videos.length - 1].url;
+                                }
+                            }
+
+                            if (linkDireto) break; // Sucesso, aborta o loop!
+                        } catch (err) {
+                            console.log(`O servidor ${servidor} falhou. A testar o próximo...`);
+                            continue;
+                        }
+                    }
+
+                    if (linkDireto) {
+                        window.location.href = linkDireto; // Inicia a transferência
                         setTimeout(restaurarBotao, 2000);
                     } else {
-                        mostrarErro("Erro: Vídeo não encontrado ou bloqueado.");
+                        mostrarErro("Erro: Todos os servidores falharam ao processar o vídeo.");
                     }
                 } catch (error) {
                     mostrarErro("Erro ao processar o YouTube localmente. Tente novamente.");
                 }
             } else {
-                // Para TikTok, X, Insta: Deixa o formulário seguir para o backend Python normalmente
+                // Deixa o formulário seguir para o backend Python (Render)
                 mostrarCarregamento();
                 setTimeout(restaurarBotao, 15000);
             }
