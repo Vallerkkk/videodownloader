@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-PT">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -18,8 +18,10 @@
     <main class="flex-grow flex items-center justify-center p-4 sm:p-8">
         <div class="bg-white/5 backdrop-blur-xl border border-white/10 p-6 sm:p-10 rounded-[32px] shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] w-full max-w-md text-center transition-all duration-300 relative">
             
-            <div id="erro-toast" class="hidden absolute -top-16 left-0 right-0 bg-red-500/90 text-white text-sm font-bold py-3 px-4 rounded-xl shadow-lg transition-all z-50">
+            <!-- CAIXA DE ERRO -->
+            <div id="erro-toast" class="hidden absolute -top-24 left-0 right-0 bg-red-500/95 text-white text-sm font-bold py-3 px-4 rounded-xl shadow-lg transition-all z-50">
                 <span id="texto-erro">Erro ao processar.</span>
+                <p id="motivo-erro" class="font-normal text-xs mt-1 opacity-90 truncate hover:whitespace-normal"></p>
             </div>
 
             <div class="mb-8">
@@ -33,7 +35,7 @@
                     Downloader Pro
                 </h1>
                 <p class="text-gray-400 mt-3 text-sm leading-relaxed px-2">
-                    Cole o link de qualquer rede social para extrair a mídia.
+                    Cole o link de qualquer rede social para extrair a multimédia.
                 </p>
             </div>
             
@@ -72,7 +74,7 @@
 
                 <div id="progress-container" class="hidden w-full mt-2 transition-all duration-500 opacity-0">
                     <div class="flex justify-between mb-1.5 px-1">
-                        <span class="text-xs font-semibold text-blue-400 animate-pulse">Extraindo mídia...</span>
+                        <span class="text-xs font-semibold text-blue-400 animate-pulse">A extrair multimédia...</span>
                         <span id="progress-text" class="text-xs font-bold text-white">0%</span>
                     </div>
                     <div class="w-full bg-gray-800 rounded-full h-2.5 border border-white/5 overflow-hidden">
@@ -91,41 +93,39 @@
         const btnDownload = document.getElementById('btn-download');
         const toast = document.getElementById('erro-toast');
         const textoErro = document.getElementById('texto-erro');
+        const motivoErro = document.getElementById('motivo-erro');
         
         const progressContainer = document.getElementById('progress-container');
         const progressBar = document.getElementById('progress-bar');
         const progressText = document.getElementById('progress-text');
         let intervaloProgresso;
 
-        // O SEGREDO ESTÁ AQUI: Uma função que obriga a conexão a cair se demorar demais
         async function fetchComTimeout(url, options = {}, tempoLimite = 3500) {
             const controller = new AbortController();
             const id = setTimeout(() => controller.abort(), tempoLimite);
             try {
                 const resposta = await fetch(url, { ...options, signal: controller.signal });
                 clearTimeout(id);
+                if (!resposta.ok) throw new Error(`Status ${resposta.status}`);
                 return resposta;
             } catch (erro) {
                 clearTimeout(id);
-                throw erro; // Se der timeout, joga o erro para pular de servidor
+                if (erro.name === 'AbortError') throw new Error("Timeout");
+                throw erro; 
             }
         }
 
         function iniciarProgresso() {
             progressContainer.classList.remove('hidden');
             setTimeout(() => progressContainer.classList.remove('opacity-0'), 50);
-            
             let progresso = 0;
             progressBar.style.width = '0%';
             progressText.innerText = '0%';
-            
             clearInterval(intervaloProgresso);
-            
             intervaloProgresso = setInterval(() => {
                 if (progresso < 40) progresso += 2; 
                 else if (progresso < 75) progresso += 1; 
                 else if (progresso < 92) progresso += 0.3; 
-                
                 progressBar.style.width = `${progresso}%`;
                 progressText.innerText = `${Math.floor(progresso)}%`;
             }, 150);
@@ -151,16 +151,17 @@
             btnSpinner.classList.add('hidden');
             btnDownload.style.opacity = '1';
             btnDownload.style.pointerEvents = 'auto';
-            
             clearInterval(intervaloProgresso);
             progressContainer.classList.add('opacity-0');
             setTimeout(() => progressContainer.classList.add('hidden'), 500);
         }
 
-        function mostrarErro(mensagem) {
+        // Função que mostra a mensagem e o log resumido na tela
+        function mostrarErro(mensagem, logTecnico) {
             textoErro.textContent = mensagem;
+            motivoErro.textContent = logTecnico;
             toast.classList.remove('hidden');
-            setTimeout(() => { toast.classList.add('hidden'); }, 6000);
+            setTimeout(() => { toast.classList.add('hidden'); }, 8000);
             restaurarBotao();
         }
 
@@ -174,32 +175,26 @@
                 mostrarCarregamento();
 
                 let linkDireto = null;
+                let logDeErros = []; 
 
                 const cobaltInstances = [
                     "https://api.cobalt.canine.tools/api/json",
                     "https://cobalt-api.peuk.dev/api/json",
-                    "https://co.a.pe.kr/api/json",
-                    "https://cobalt.c.fe.ro/api/json",
-                    "https://cobalt.qewertyy.dev/api/json"
+                    "https://co.a.pe.kr/api/json"
                 ];
 
                 for (let api of cobaltInstances) {
                     try {
-                        // Usa a nossa nova função rápida com limite de 3.5 segundos!
                         const resposta = await fetchComTimeout(api, {
                             method: "POST",
                             headers: { "Accept": "application/json", "Content-Type": "application/json" },
                             body: JSON.stringify({ url: urlInput, vCodec: "h264", isAudioOnly: isAudio })
                         });
-
-                        if (resposta.ok) {
-                            const dados = await resposta.json();
-                            linkDireto = dados.url || (dados.picker && dados.picker.length > 0 ? dados.picker[0].url : null);
-                            if (linkDireto) break;
-                        }
+                        const dados = await resposta.json();
+                        linkDireto = dados.url || (dados.picker && dados.picker.length > 0 ? dados.picker[0].url : null);
+                        if (linkDireto) break;
                     } catch (err) { 
-                        console.log("Servidor demorou ou falhou, pulando...");
-                        continue; 
+                        logDeErros.push(`API 1: ${err.message}`);
                     }
                 }
 
@@ -209,33 +204,31 @@
                         const videoId = match[1];
                         const invidiousInstances = [
                             "https://vid.puffyan.us",
-                            "https://inv.tux.pizza",
-                            "https://invidious.jing.rocks",
-                            "https://invidious.nerdvpn.de"
+                            "https://inv.tux.pizza"
                         ];
                         
                         for (let inst of invidiousInstances) {
                             try {
                                 const res = await fetchComTimeout(`${inst}/api/v1/videos/${videoId}`, {}, 3500);
-                                if (!res.ok) continue;
                                 const data = await res.json();
-                                
-                                if (isAudio) {
+                                if (isAudio && data.adaptiveFormats) {
                                     const audios = data.adaptiveFormats.filter(f => f.type.includes('audio'));
                                     if (audios.length > 0) {
-                                        audios.sort((a, b) => b.bitrate - a.bitrate);
-                                        linkDireto = `${inst}/latest_version?id=${videoId}&itag=${audios[0].itag}&local=true`;
+                                        linkDireto = `${inst}/latest_version?id=${videoId}&itag=${audios.sort((a, b) => b.bitrate - a.bitrate)[0].itag}&local=true`;
                                         break;
                                     }
-                                } else {
-                                    const videos = data.formatStreams;
-                                    if (videos.length > 0) {
-                                        linkDireto = `${inst}/latest_version?id=${videoId}&itag=${videos[0].itag}&local=true`;
+                                } else if (data.formatStreams) {
+                                    if (data.formatStreams.length > 0) {
+                                        linkDireto = `${inst}/latest_version?id=${videoId}&itag=${data.formatStreams[0].itag}&local=true`;
                                         break;
                                     }
                                 }
-                            } catch (e) { continue; }
+                            } catch (err) { 
+                                logDeErros.push(`API 2: ${err.message}`);
+                            }
                         }
+                    } else {
+                        logDeErros.push("ID do vídeo inválido.");
                     }
                 }
 
@@ -246,7 +239,9 @@
                         setTimeout(restaurarBotao, 2000);
                     }, 500); 
                 } else {
-                    mostrarErro("Erro: Os servidores estão congestionados. Tente novamente.");
+                    const resumoFalhas = logDeErros.join(" | ");
+                    // Exibe apenas na tela, não envia para o servidor
+                    mostrarErro("A transferência falhou.", resumoFalhas);
                 }
             } else {
                 mostrarCarregamento();
