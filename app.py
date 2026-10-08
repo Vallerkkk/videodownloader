@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, redirect, Response, stream_with_context
 import yt_dlp
 import requests
+import re  # Biblioteca nativa para processar textos
 
 app = Flask(__name__, template_folder='.')
 
@@ -16,31 +17,57 @@ def baixar():
     if not url:
         return "Erro: Nenhum link fornecido.", 400
 
-    # === TRUQUE ANTI-BLOQUEIO PARA YOUTUBE (API COBALT) ===
+    # === TRUQUE ANTI-BLOQUEIO PARA YOUTUBE (API PIPED) ===
     if 'youtube.com' in url or 'youtu.be' in url:
         try:
-            headers = {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
-            }
-            payload = {
-                'url': url,
-                'vCodec': 'h264',
-                'isAudioOnly': True if formato_escolhido == 'audio' else False
-            }
+            # Extrai apenas o ID do vídeo (ex: dQw4w9WgXcQ) mesmo de links sujos
+            match = re.search(r"(?:v=|\/)([0-9A-Za-z_-]{11})", url)
+            if not match:
+                return "Erro: Link do YouTube inválido.", 400
+                
+            video_id = match.group(1)
             
-            # Chama a API pública do Cobalt (que tem IPs residenciais que não são bloqueados)
-            r = requests.post('https://api.cobalt.tools/api/json', json=payload, headers=headers)
+            # Lista de servidores Piped (Open Source, sem bloqueio de Cloudflare e com Proxy)
+            servidores_piped = [
+                "https://pipedapi.kavin.rocks",
+                "https://api.piped.projectsegfau.lt",
+                "https://piped-api.lunar.icu",
+                "https://pipedapi.smnz.de"
+            ]
             
-            if r.status_code == 200:
-                dados = r.json()
-                if 'url' in dados:
-                    return redirect(dados['url'])
-                elif 'picker' in dados and len(dados['picker']) > 0:
-                    return redirect(dados['picker'][0]['url'])
+            link_direto = None
+            
+            # Tenta baixar usando os servidores da lista. Se um falhar, tenta o próximo silenciosamente.
+            for servidor in servidores_piped:
+                try:
+                    r = requests.get(f"{servidor}/streams/{video_id}", timeout=8)
+                    if r.status_code == 200:
+                        dados = r.json()
+                        
+                        if formato_escolhido == 'audio':
+                            # Pega a melhor qualidade de áudio
+                            audios = dados.get('audioStreams', [])
+                            if audios:
+                                melhor_audio = max(audios, key=lambda x: x.get('bitrate', 0))
+                                link_direto = melhor_audio.get('url')
+                        else:
+                            # Pega o melhor vídeo que já tem áudio embutido (videoOnly = False)
+                            videos = [v for v in dados.get('videoStreams', []) if not v.get('videoOnly')]
+                            if videos:
+                                # O último item da lista costuma ser a resolução mais alta (720p)
+                                link_direto = videos[-1].get('url')
+                                
+                        if link_direto:
+                            break # Encontrou o link com sucesso, sai do loop de tentativas
+                except:
+                    continue # Servidor atual caiu, tenta o próximo da lista
                     
-            return "Erro: O servidor alternativo não conseguiu processar o vídeo do YouTube.", 500
+            if link_direto:
+                # O usuário é redirecionado para o proxy seguro do Piped, evitando o Erro 403
+                return redirect(link_direto)
+            else:
+                return "Erro: Todos os servidores alternativos falharam ao tentar extrair o vídeo do YouTube.", 500
+                
         except Exception as e:
             return f"Erro ao contornar o YouTube: {str(e)}", 500
 
