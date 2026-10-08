@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Universal Video Downloader</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        input[type="url"] { font-size: 16px; }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-900 via-slate-900 to-black text-white min-h-[100dvh] flex flex-col selection:bg-blue-500 selection:text-white">
+    
+    <main class="flex-grow flex items-center justify-center p-4 sm:p-8">
+        <div class="bg-white/5 backdrop-blur-xl border border-white/10 p-6 sm:p-10 rounded-[32px] shadow-[0_8px_32px_0_rgba(0,0,0,0.37)] w-full max-w-md text-center transition-all duration-300">
+            
+            <div class="mb-8">
+                <div class="flex justify-center gap-3 mb-4 text-2xl text-gray-400">
+                    <i class="fa-brands fa-youtube hover:text-red-500 transition-colors"></i>
+                    <i class="fa-brands fa-tiktok hover:text-white transition-colors"></i>
+                    <i class="fa-brands fa-instagram hover:text-pink-500 transition-colors"></i>
+                    <i class="fa-brands fa-x-twitter hover:text-blue-400 transition-colors"></i>
+                </div>
+                <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-400">
+                    Downloader Pro
+                </h1>
+                <p class="text-gray-400 mt-3 text-sm leading-relaxed px-2">
+                    Cole o link de qualquer rede social para extrair a mídia em alta qualidade.
+                </p>
+            </div>
+            
+            <form action="/baixar" method="POST" class="space-y-5" onsubmit="mostrarCarregamento()">
+                
+                <!-- Seletor de Formato -->
+                <div class="flex gap-4 mb-2">
+                    <label class="flex-1 cursor-pointer">
+                        <input type="radio" name="formato" value="video" class="peer sr-only" checked>
+                        <div class="rounded-xl border border-white/10 bg-black/40 py-3 text-center peer-checked:bg-blue-600 peer-checked:border-blue-400 peer-checked:shadow-[0_0_15px_rgba(37,99,235,0.4)] transition-all text-sm font-semibold text-gray-300 peer-checked:text-white">
+                            <i class="fa-solid fa-video mr-2"></i> Vídeo (MP4)
+                        </div>
+                    </label>
+                    <label class="flex-1 cursor-pointer">
+                        <input type="radio" name="formato" value="audio" class="peer sr-only">
+                        <div class="rounded-xl border border-white/10 bg-black/40 py-3 text-center peer-checked:bg-purple-600 peer-checked:border-purple-400 peer-checked:shadow-[0_0_15px_rgba(147,51,234,0.4)] transition-all text-sm font-semibold text-gray-300 peer-checked:text-white">
+                            <i class="fa-solid fa-music mr-2"></i> Áudio (MP3)
+                        </div>
+                    </label>
+                </div>
+
+                <div class="relative group">
+                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors group-focus-within:text-blue-400 text-gray-500">
+                        <i class="fa-solid fa-link"></i>
+                    </div>
+                    <input type="url" name="url" placeholder="Cole a URL do post ou vídeo..." required
+                        class="w-full pl-12 pr-4 h-14 rounded-2xl bg-black/40 border border-white/10 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/50 transition-all text-gray-100 placeholder-gray-500">
+                </div>
+                
+                <button type="submit" id="btn-download"
+                    class="relative w-full overflow-hidden bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-bold h-14 rounded-2xl transition-all shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_30px_rgba(59,130,246,0.5)] active:scale-95 flex items-center justify-center group">
+                    <span id="btn-text" class="flex items-center text-lg">
+                        <i class="fa-solid fa-bolt mr-2 group-hover:scale-110 transition-transform"></i> Processar Mídia
+                    </span>
+                    <i id="btn-spinner" class="fa-solid fa-spinner fa-spin hidden text-2xl"></i>
+                </button>
+                
+            </form>
+
+            <div class="mt-8 pt-6 border-t border-white/10 text-xs text-gray-500 flex flex-col gap-2">
+                <p><i class="fa-solid fa-shield-halved mr-1"></i> Seguro, anônimo e ilimitado.</p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function mostrarCarregamento() {
+            const btnText = document.getElementById('btn-text');
+            const btnSpinner = document.getElementById('btn-spinner');
+            const btnDownload = document.getElementById('btn-download');
+
+            btnText.classList.add('hidden');
+            btnSpinner.classList.remove('hidden');
+            
+            btnDownload.style.opacity = '0.8';
+            btnDownload.style.cursor = 'wait';
+            
+            // Restaura o botão após 15 segundos
+            setTimeout(() => {
+                btnText.classList.remove('hidden');
+                btnSpinner.classList.add('hidden');
+                btnDownload.style.opacity = '1';
+                btnDownload.style.cursor = 'pointer';
+            }, 15000);
+        }
+    </script>
+</body>
+</html>
