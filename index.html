@@ -10,7 +10,7 @@
     <style>
         body { font-family: 'Inter', sans-serif; }
         input[type="url"] { font-size: 16px; }
-        .progress-transition { transition: width 0.4s ease-out; }
+        .progress-transition { transition: width 0.3s ease-out; }
     </style>
 </head>
 <body class="bg-gradient-to-br from-gray-900 via-slate-900 to-black text-white min-h-[100dvh] flex flex-col selection:bg-blue-500 selection:text-white">
@@ -21,11 +21,6 @@
             <div id="erro-toast" class="hidden absolute -top-24 left-0 right-0 bg-red-500/95 text-white text-sm font-bold py-3 px-4 rounded-xl shadow-lg transition-all z-50">
                 <span id="texto-erro">Erro ao processar.</span>
                 <p id="motivo-erro" class="font-normal text-xs mt-1 opacity-90 truncate hover:whitespace-normal"></p>
-            </div>
-
-            <!-- Aviso de Redirecionamento (Failsafe) -->
-            <div id="aviso-seguro" class="hidden absolute -top-16 left-0 right-0 bg-blue-600/95 text-white text-sm font-bold py-3 px-4 rounded-xl shadow-[0_0_15px_rgba(37,99,235,0.6)] transition-all z-50 animate-pulse">
-                <span><i class="fa-solid fa-route mr-2"></i> Rota congestionada. A ativar alternativa segura...</span>
             </div>
 
             <div class="mb-8">
@@ -39,12 +34,11 @@
                     Downloader Pro
                 </h1>
                 <p class="text-gray-400 mt-3 text-sm leading-relaxed px-2">
-                    Cole o link de qualquer rede social para extrair a multimédia.
+                    Cole a ligação de qualquer rede social para extrair a multimédia.
                 </p>
             </div>
             
             <form id="form-download" action="/baixar" method="POST" class="space-y-5">
-                
                 <div class="flex gap-4 mb-2">
                     <label class="flex-1 cursor-pointer">
                         <input type="radio" name="formato" value="video" id="formato-video" class="peer sr-only" checked>
@@ -76,9 +70,10 @@
                     <i id="btn-spinner" class="fa-solid fa-spinner fa-spin hidden text-2xl"></i>
                 </button>
 
+                <!-- BARRA DE PROGRESSO REAL -->
                 <div id="progress-container" class="hidden w-full mt-2 transition-all duration-500 opacity-0">
                     <div class="flex justify-between mb-1.5 px-1">
-                        <span class="text-xs font-semibold text-blue-400 animate-pulse">A extrair multimédia...</span>
+                        <span id="progress-status" class="text-xs font-semibold text-blue-400 animate-pulse">A comunicar com o servidor...</span>
                         <span id="progress-text" class="text-xs font-bold text-white">0%</span>
                     </div>
                     <div class="w-full bg-gray-800 rounded-full h-2.5 border border-white/5 overflow-hidden">
@@ -96,51 +91,22 @@
         const btnSpinner = document.getElementById('btn-spinner');
         const btnDownload = document.getElementById('btn-download');
         const toast = document.getElementById('erro-toast');
-        const avisoSeguro = document.getElementById('aviso-seguro');
         const textoErro = document.getElementById('texto-erro');
         const motivoErro = document.getElementById('motivo-erro');
-        
         const progressContainer = document.getElementById('progress-container');
         const progressBar = document.getElementById('progress-bar');
         const progressText = document.getElementById('progress-text');
-        let intervaloProgresso;
+        const progressStatus = document.getElementById('progress-status');
 
-        async function fetchComTimeout(url, options = {}, tempoLimite = 8000) {
-            const controller = new AbortController();
-            const id = setTimeout(() => controller.abort(), tempoLimite);
-            try {
-                const resposta = await fetch(url, { ...options, signal: controller.signal });
-                clearTimeout(id);
-                if (!resposta.ok) throw new Error(`Status ${resposta.status}`);
-                return resposta;
-            } catch (erro) {
-                clearTimeout(id);
-                if (erro.name === 'AbortError') throw new Error("Timeout");
-                if (erro.message.includes('Failed to fetch')) throw new Error("CORS/Bloqueio");
-                throw erro; 
+        function atualizarBarraVisual(porcentagem, mensagem = "A converter ficheiro...") {
+            progressContainer.classList.remove('hidden', 'opacity-0');
+            progressBar.style.width = `${porcentagem}%`;
+            progressText.innerText = `${porcentagem}%`;
+            progressStatus.innerText = mensagem;
+            if(porcentagem >= 100) {
+                progressText.innerText = '100%';
+                progressStatus.innerText = "Concluído! A iniciar download...";
             }
-        }
-
-        function iniciarProgresso() {
-            progressContainer.classList.remove('hidden');
-            setTimeout(() => progressContainer.classList.remove('opacity-0'), 50);
-            let progresso = 0;
-            progressBar.style.width = '0%';
-            progressText.innerText = '0%';
-            clearInterval(intervaloProgresso);
-            intervaloProgresso = setInterval(() => {
-                if (progresso < 40) progresso += 1.5; 
-                else if (progresso < 80) progresso += 0.8; 
-                else if (progresso < 95) progresso += 0.15; 
-                progressBar.style.width = `${progresso}%`;
-                progressText.innerText = `${Math.floor(progresso)}%`;
-            }, 150);
-        }
-
-        function finalizarProgresso() {
-            clearInterval(intervaloProgresso);
-            progressBar.style.width = '100%';
-            progressText.innerText = '100%';
         }
 
         function mostrarCarregamento() {
@@ -149,30 +115,24 @@
             btnDownload.style.opacity = '0.5';
             btnDownload.style.pointerEvents = 'none';
             toast.classList.add('hidden');
-            avisoSeguro.classList.add('hidden');
-            iniciarProgresso();
+            atualizarBarraVisual(0, 'A preparar extração...');
         }
 
-            function ativarResgate(urlOriginal) {
-            avisoSeguro.classList.remove('hidden');
-            progressBar.style.width = '100%';
-            progressText.innerText = 'Redirecionando...';
-            
-            // Redireciona o utilizador para o Y2Mate, um dos poucos gigantes com orçamento para burlar o YouTube
-            setTimeout(() => {
-                window.location.href = `https://www.y2mate.com/youtube?q=${encodeURIComponent(urlOriginal)}`;
-            }, 2500);
+        function restaurarBotao() {
+            btnText.classList.remove('hidden');
+            btnSpinner.classList.add('hidden');
+            btnDownload.style.opacity = '1';
+            btnDownload.style.pointerEvents = 'auto';
+            progressContainer.classList.add('opacity-0');
+            setTimeout(() => progressContainer.classList.add('hidden'), 500);
         }
 
-            function ativarResgate(urlOriginal) {
-            avisoSeguro.classList.remove('hidden');
-            progressBar.style.width = '100%';
-            progressText.innerText = 'Redirecionando...';
-            
-            // Redireciona o utilizador para a interface web oficial e segura do Cobalt
-            setTimeout(() => {
-                window.location.href = `https://cobalt.tools/?u=${encodeURIComponent(urlOriginal)}`;
-            }, 2500);
+        function mostrarErro(mensagem, logTecnico) {
+            textoErro.textContent = mensagem;
+            motivoErro.textContent = logTecnico;
+            toast.classList.remove('hidden');
+            setTimeout(() => { toast.classList.add('hidden'); }, 8000);
+            restaurarBotao();
         }
 
         form.addEventListener('submit', async function(e) {
@@ -184,80 +144,107 @@
                 e.preventDefault(); 
                 mostrarCarregamento();
 
-                let linkDireto = null;
-                let logDeErros = []; 
+                let formato = isAudio ? 'mp3' : '720';
+                let urlEncoded = encodeURIComponent(urlInput);
+                let idTarefa = null;
+                let provedor = null;
+                let usarBackendProxy = false;
 
-                // TÚNEL 1: O CORS PROXY + APIs do Cobalt
-                const cobaltInstances = [
-                    "https://api.cobalt.canine.tools/api/json",
-                    "https://cobalt-api.peuk.dev/api/json"
-                ];
-
-                for (let api of cobaltInstances) {
+                // FASE 1: OBTER O ID DA TAREFA DA FÁBRICA DE CONVERSÃO
+                try {
+                    // Tenta aceder diretamente da internet do utilizador (Método AZK nativo)
+                    const res = await fetch(`https://p.oceansaver.in/ajax/download.php?format=${formato}&url=${urlEncoded}&api=dfcb6d76f2f6a9894gjkege8a4ab232222`);
+                    const data = await res.json();
+                    if (data.success == 1 && data.id) {
+                        idTarefa = data.id;
+                        provedor = "oceansaver";
+                    } else { throw new Error("A API rejeitou o pedido."); }
+                } catch (err) {
+                    // FASE 2 (TÚNEL DE SEGURANÇA): Se o Adblocker bloqueou, usamos o Python do Render!
+                    usarBackendProxy = true;
                     try {
-                        // Passamos o URL da API através do corsproxy.io para furar o bloqueio do navegador!
-                        const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(api);
-                        const resposta = await fetchComTimeout(proxyUrl, {
-                            method: "POST",
-                            headers: { "Accept": "application/json", "Content-Type": "application/json" },
-                            body: JSON.stringify({ url: urlInput, vCodec: "h264", isAudioOnly: isAudio })
-                        }, 8000); 
-                        
-                        const dados = await resposta.json();
-                        linkDireto = dados.url || (dados.picker && dados.picker.length > 0 ? dados.picker[0].url : null);
-                        if (linkDireto) break;
-                    } catch (err) { 
-                        logDeErros.push(`CBLT: ${err.message}`);
+                        const res = await fetch('/proxy/iniciar', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ url: urlInput, formato: formato })
+                        });
+                        const data = await res.json();
+                        if (data.success && data.id) {
+                            idTarefa = data.id;
+                            provedor = data.provedor;
+                        } else { throw new Error("Túnel de segurança falhou."); }
+                    } catch (err2) {
+                        mostrarErro("Serviço indisponível.", "Os servidores de conversão estão desligados.");
+                        return;
                     }
                 }
 
-                // TÚNEL 2: O CORS PROXY + APIs do Invidious
-                if (!linkDireto) {
-                    const match = urlInput.match(/(?:v=|\/)([0-9A-Za-z_-]{11})/);
-                    if (match) {
-                        const videoId = match[1];
-                        const invidiousInstances = [
-                            "https://inv.tux.pizza",
-                            "https://invidious.jing.rocks"
-                        ];
+                // FASE 3: POLLING (ACOMPANHAMENTO DO PROGRESSO REAL)
+                if (idTarefa) {
+                    let concluido = false;
+                    let tentativasFalhas = 0;
+
+                    while (!concluido) {
+                        await new Promise(r => setTimeout(r, 2000)); // Pergunta à API a cada 2 segundos
                         
-                        for (let inst of invidiousInstances) {
-                            try {
-                                const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(`${inst}/api/v1/videos/${videoId}`);
-                                const res = await fetchComTimeout(proxyUrl, {}, 8000);
-                                const data = await res.json();
-                                if (isAudio && data.adaptiveFormats) {
-                                    const audios = data.adaptiveFormats.filter(f => f.type.includes('audio'));
-                                    if (audios.length > 0) {
-                                        linkDireto = `${inst}/latest_version?id=${videoId}&itag=${audios.sort((a, b) => b.bitrate - a.bitrate)[0].itag}&local=true`;
-                                        break;
+                        try {
+                            let resProgresso, dataProgresso;
+                            
+                            if (!usarBackendProxy) {
+                                resProgresso = await fetch(`https://p.oceansaver.in/ajax/progress.php?id=${idTarefa}`);
+                                dataProgresso = await resProgresso.json();
+                                if (dataProgresso.success == 1) {
+                                    let pct = Math.floor(dataProgresso.progress / 10);
+                                    atualizarBarraVisual(pct > 100 ? 100 : pct);
+                                    if (dataProgresso.progress >= 1000 || dataProgresso.download_url) {
+                                        concluido = true;
+                                        window.location.href = dataProgresso.download_url;
+                                        setTimeout(restaurarBotao, 2000);
                                     }
-                                } else if (data.formatStreams && data.formatStreams.length > 0) {
-                                    linkDireto = `${inst}/latest_version?id=${videoId}&itag=${data.formatStreams[0].itag}&local=true`;
-                                    break;
+                                } else {
+                                    throw new Error(dataProgresso.text || "Vídeo protegido.");
                                 }
-                            } catch (err) { 
-                                logDeErros.push(`INVD: ${err.message}`);
+                            } else {
+                                // Polling pelo Túnel Python
+                                resProgresso = await fetch(`/proxy/progresso?id=${idTarefa}&provedor=${provedor}`);
+                                dataProgresso = await resProgresso.json();
+                                if (dataProgresso.success) {
+                                    atualizarBarraVisual(dataProgresso.progress);
+                                    if (dataProgresso.download_url) {
+                                        concluido = true;
+                                        window.location.href = dataProgresso.download_url;
+                                        setTimeout(restaurarBotao, 2000);
+                                    }
+                                } else {
+                                    throw new Error(dataProgresso.text || "Falha remota.");
+                                }
+                            }
+                        } catch (e) {
+                            // Se der um erro na resposta, espera e tenta de novo (até 8 vezes)
+                            tentativasFalhas++;
+                            if (e.message && e.message !== "Failed to fetch" && tentativasFalhas > 1) {
+                                mostrarErro("Conversão rejeitada.", e.message);
+                                concluido = true;
+                            } else if(tentativasFalhas > 8) {
+                                mostrarErro("Tempo esgotado.", "O servidor demorou demasiado tempo a processar.");
+                                concluido = true;
                             }
                         }
                     }
                 }
-
-                // O VEREDITO FINAL
-                if (linkDireto) {
-                    finalizarProgresso();
-                    setTimeout(() => {
-                        window.location.href = linkDireto;
-                        setTimeout(restaurarBotao, 2000);
-                    }, 500); 
-                } else {
-                    // MODO RESGATE: Se todas as APIs falharem e o Proxy for abaixo, enviamos o utilizador para a Rota Segura!
-                    console.log("Erros capturados:", logDeErros.join(" | "));
-                    ativarResgate(urlInput);
-                }
             } else {
+                // PARA TIKTOK E X/TWITTER (Processado no Backend Python)
                 mostrarCarregamento();
-                setTimeout(restaurarBotao, 15000);
+                let progressoFalso = 0;
+                let intervaloSimulacao = setInterval(() => {
+                    if (progressoFalso < 92) progressoFalso += 2;
+                    atualizarBarraVisual(progressoFalso, 'A extrair do servidor local...');
+                }, 150);
+                
+                setTimeout(() => { 
+                    clearInterval(intervaloSimulacao); 
+                    restaurarBotao(); 
+                }, 15000);
             }
         });
     </script>
